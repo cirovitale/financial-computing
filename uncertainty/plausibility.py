@@ -10,7 +10,7 @@ class PlausibilityAnalyzer:
     Calcola la plausibilità (Pl) in base alla presenza di pattern candlestick confermativi.
     """
 
-    def __init__(self, lookback: int = 5, signal_timeframe: str = "15m"):
+    def __init__(self, lookback: int = 20, signal_timeframe: str = "15m"):
         """
         Args:
             lookback: numero di candele recenti da considerare
@@ -49,10 +49,11 @@ class PlausibilityAnalyzer:
         try:
             # Rileva pattern usando TechnicalAnalyzer
             patterns = self.analyzer.detect_patterns(ticker)
+            
             if not patterns:
                 print(f"Nessun pattern rilevato per {ticker}")
-                return 0.0
-
+                return 0.5
+            
             # Considera solo gli ultimi N pattern
             recent_patterns = sorted(patterns, key=lambda x: x['position'])[-self.lookback:]
             

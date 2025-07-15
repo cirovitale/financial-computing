@@ -24,7 +24,7 @@ class SignalProcessor:
             mt4_signal: Dict contenente:
                 - ticker: str
                 - direction: 'BUY'|'SELL'|'HOLD'
-                - strategy_signal: float [0,1]
+                - strength: float [0,1]
                 - confidence: float [0,1]
                 - entry_price: float
                 - stop_loss: float

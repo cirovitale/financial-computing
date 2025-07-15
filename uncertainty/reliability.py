@@ -41,7 +41,7 @@ class ReliabilityCalculator:
         Args:
             signal_data: Dict contenente:
                 - direction: 'BUY', 'SELL' o 'HOLD'
-                - strategy_signal: forza segnale [0,1]
+                - strength: forza segnale [0,1]
                 - confidence: confidenza strategia [0,1]
                 - ticker: simbolo del ticker
                 
@@ -64,10 +64,22 @@ class ReliabilityCalculator:
             ticker = signal_data['ticker']
             
             # Calcola i quattro indici
-            probability = self.probability_analyzer.calculate_probability(signal_data)
-            plausibility = self.plausibility_analyzer.calculate_plausibility(ticker, signal_data['direction'])
-            credibility = self.credibility_analyzer.calculate_credibility(ticker)
-            possibility = self.possibility_analyzer.calculate_possibility(ticker)
+            if self.weights['probability'] > 0:
+                probability = self.probability_analyzer.calculate_probability(signal_data)
+            else:
+                probability = 1
+            if self.weights['plausibility'] > 0:
+                plausibility = self.plausibility_analyzer.calculate_plausibility(ticker, signal_data['direction'])
+            else:
+                plausibility = 1
+            if self.weights['credibility'] > 0:
+                credibility = self.credibility_analyzer.calculate_credibility(ticker)
+            else:
+                credibility = 1
+            if self.weights['possibility'] > 0:
+                possibility = self.possibility_analyzer.calculate_possibility(ticker)
+            else:
+                possibility = 1
             
             # Calcola affidabilità come somma pesata
             reliability = (

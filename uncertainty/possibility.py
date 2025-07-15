@@ -44,7 +44,12 @@ class PossibilityAnalyzer:
             scores = []
             for event in events:
                 # Calcola giorni mancanti
-                event_date = datetime.fromtimestamp(event.get('datetime', 0))
+                try:
+                    date_str = event.get('date', '')
+                    event_date = datetime.strptime(date_str, '%d/%m/%Y')
+                except:
+                    continue  # Salta evento se data non valida
+
                 days_until = (event_date - datetime.now()).total_seconds() / (24 * 3600)
                 
                 if days_until < 0:  # Evento passato
@@ -54,22 +59,22 @@ class PossibilityAnalyzer:
                 if days_until > 3:
                     time_score = 1.0
                 elif days_until > 2:
-                    time_score = 0.8
+                    time_score = 0.9
                 elif days_until > 1:
-                    time_score = 0.6
+                    time_score = 0.75
                 else:
-                    time_score = 0.2
+                    time_score = 0.6
 
                 # Modifica per importanza evento
                 impact = event.get('impact', '').lower()
                 if impact == 'high':
-                    impact_multiplier = 0.5  # riduce score del 50%
-                elif impact == 'medium':
-                    impact_multiplier = 0.7  # riduce score del 30%
-                elif impact == 'low':  # low
-                    impact_multiplier = 0.9  # riduce score del 10%
-                else:
                     impact_multiplier = 0.7
+                elif impact == 'medium':
+                    impact_multiplier = 0.8
+                elif impact == 'low':
+                    impact_multiplier = 0.9
+                else:
+                    impact_multiplier = 0.8
 
                 final_score = time_score * impact_multiplier
                 scores.append(final_score)

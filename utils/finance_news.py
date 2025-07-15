@@ -26,41 +26,17 @@ class FinanceNews:
         else:
             self.finnhub_client = finnhub.Client(api_key=self.api_key)
 
-    def get_ticker_news(self, ticker: str, max_items: int = 10) -> List[Dict[str, Any]]:
-        """
-        Recupera le notizie per un ticker azionario specifico.
-
-        Args:
-            ticker: Simbolo del ticker azionario (es. 'AAPL', 'MSFT')
-            max_items: Numero massimo di notizie da recuperare
-
-        Returns:
-            Lista di notizie aziendali con metadata
-        """
-        if not self.api_key or not self.finnhub_client:
-            print(f"API Key mancante per recupero notizie {ticker}")
-            return []
-
+    def get_ticker_news(self, ticker: str, max_items: int = 20) -> List[Dict]:
+        """Recupera notizie per ticker (azioni o forex)."""
         try:
-            print(f"Recupero notizie per azione {ticker}...")
-
-            # Ottiene info azienda per migliorare ricerca
-            company_info = self._get_company_info(ticker)
-
-            # Cerca notizie con diversi approcci
-            all_news = []
-
-            # 1. News specifiche per il ticker (max 15)
-            company_news = self._fetch_company_news(ticker)
-            all_news.extend(company_news[:max_items])
-
-            # 2. News generali filtrate per rilevanza (max 15)
-            general_news = self._fetch_general_market_news(ticker, company_info)
-            all_news.extend(general_news[:max_items])
-
-            print(f"Trovate {len(all_news)} notizie rilevanti per {ticker}")
-            return all_news
-
+            # Determina se è forex o azione
+            if self._is_forex_pair(ticker):
+                print(f"Recupero notizie forex per {ticker}...")
+                return self._get_forex_news(ticker, max_items)
+            else:
+                print(f"Recupero notizie per azione {ticker}...")
+                return self._get_stock_news(ticker, max_items)
+            
         except Exception as e:
             print(f"Errore recupero notizie per {ticker}: {e}")
             return []
@@ -97,8 +73,8 @@ class FinanceNews:
                 )
                 print(f"Economic Calendar Event:\n")
                 print(f"  └─ Economic Calendar Event: {event}")
-                print(f"  └─ Company Context: {company_context}")
-                print(f"  └─ Relevance: {relevance}")
+                # print(f"  └─ Company Context: {company_context}")
+                # print(f"  └─ Relevance: {relevance}")
                 
                 if relevance > 0.5:  # soglia minima rilevanza
                     event['relevance_score'] = relevance
@@ -142,7 +118,7 @@ class FinanceNews:
             calendar = investpy.news.economic_calendar(
                 from_date=start_date_formatted,
                 to_date=end_date_formatted,
-                importances=['high', 'medium']
+                importances=['high']
             )
 
             # Converti il DataFrame in lista di dizionari
@@ -151,15 +127,16 @@ class FinanceNews:
             # Standardizza i nomi dei campi per mantenere compatibilità
             standardized_events = []
             for event in events:
-                standardized_event = {
-                    'event': event.get('event', ''),
-                    'country': event.get('zone', ''),
-                    'importance': event.get('importance', ''),
-                    'date': event.get('date', ''),
-                    'forecast': event.get('forecast', ''),
-                    'zone': event.get('zone', '')
-                }
-                standardized_events.append(standardized_event)
+                if event.get('importance') is not None:
+                    standardized_event = {
+                        'event': event.get('event', ''),
+                        'country': event.get('zone', ''),
+                        'importance': event.get('importance', ''),
+                        'date': event.get('date', ''),
+                        'forecast': event.get('forecast', ''),
+                        'zone': event.get('zone', '')
+                    }
+                    standardized_events.append(standardized_event)
 
             return standardized_events
 
@@ -304,3 +281,86 @@ class FinanceNews:
 
         except Exception:
             return False
+
+    def _is_forex_pair(self, ticker: str) -> bool:
+        """Controlla se il ticker è una coppia forex."""
+        forex_pairs = ['GBPUSD', 'EURUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP', 'EURJPY']
+        return ticker.upper() in forex_pairs
+
+    def _get_forex_news(self, ticker: str, max_items: int) -> List[Dict]:
+        """Recupera notizie forex usando general news."""
+        try:
+            if not self.finnhub_client:
+                print("Finnhub client non inizializzato")
+                return []
+            
+            # Mappa forex a keywords
+            forex_keywords = {
+                'GBPUSD': ['GBP', 'USD', 'pound', 'dollar'],
+                'EURUSD': ['EUR', 'USD', 'euro', 'dollar'],
+                'USDJPY': ['USD', 'JPY', 'dollar', 'yen'],
+                'USDCHF': ['USD', 'CHF', 'dollar', 'franc'],
+                'AUDUSD': ['AUD', 'USD', 'dollar'],
+                'USDCAD': ['USD', 'CAD', 'dollar'],
+                'NZDUSD': ['NZD', 'USD', 'dollar']
+            }
+            
+            keywords = forex_keywords.get(ticker.upper(), ['forex', 'currency'])
+            
+            # Usa general news
+            news_data = self.finnhub_client.general_news('general')
+            
+            relevant_news = []
+            for item in news_data[:max_items * 3]:  # Recupera più notizie per filtrare
+                headline = item.get('headline', '').upper()
+                summary = item.get('summary', '').upper()
+                
+                # Controlla se contiene keywords rilevanti
+                if any(keyword.upper() in headline + ' ' + summary for keyword in keywords):
+                    relevant_news.append({
+                        'headline': item.get('headline', ''),
+                        'summary': item.get('summary', ''),
+                        'source': item.get('source', ''),
+                        'url': item.get('url', ''),
+                        'datetime': item.get('datetime', 0)
+                    })
+                    
+                    if len(relevant_news) >= max_items:
+                        break
+            
+            print(f"Trovate {len(relevant_news)} notizie forex per {ticker}")
+            return relevant_news
+            
+        except Exception as e:
+            print(f"Errore recupero notizie forex: {e}")
+            return []
+
+    def _get_stock_news(self, ticker: str, max_items: int) -> List[Dict]:
+        """Recupera notizie per azioni."""
+        # Metodo esistente per azioni
+        if not self.finnhub_client:
+            print("Finnhub client non inizializzato")
+            return []
+        try:
+            print(f"Recupero notizie per azione {ticker}...")
+
+            # Ottiene info azienda per migliorare ricerca
+            company_info = self._get_company_info(ticker)
+
+            # Cerca notizie con diversi approcci
+            all_news = []
+
+            # 1. News specifiche per il ticker (max 15)
+            company_news = self._fetch_company_news(ticker)
+            all_news.extend(company_news[:max_items])
+
+            # 2. News generali filtrate per rilevanza (max 15)
+            general_news = self._fetch_general_market_news(ticker, company_info)
+            all_news.extend(general_news[:max_items])
+
+            print(f"Trovate {len(all_news)} notizie rilevanti per {ticker}")
+            return all_news
+
+        except Exception as e:
+            print(f"Errore recupero company news per {ticker}: {e}")
+            return []

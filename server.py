@@ -99,10 +99,12 @@ def index():
 def receive_signal():
     """Riceve e processa segnale MT4"""
     try:
+        # raw = request.data.decode('utf-8', errors='replace')
+        
         signal_data = request.get_json()
         
         # Validazione campi obbligatori
-        required_fields = ['direction', 'ticker', 'entry_price', 'stop_loss', 'take_profit', 'confidence', 'strategy_signal']
+        required_fields = ['direction', 'ticker', 'entry_price', 'stop_loss', 'take_profit', 'confidence', 'strength', 'timeframe', 'timestamp', 'magic_number']
         missing_fields = [field for field in required_fields if field not in signal_data]
         
         if missing_fields:
@@ -110,17 +112,15 @@ def receive_signal():
                 'error': f'Campi mancanti: {missing_fields}',
                 'required_fields': required_fields
             }), 400
-        
-        # Aggiunge timeframe se mancante (default per MT4)
-        if 'timeframe' not in signal_data:
-            signal_data['timeframe'] = '15m'
-        
+            
         print(f"\n--- SEGNALE RICEVUTO ---")
         print(f"Ticker: {signal_data['ticker']}")
         print(f"Direction: {signal_data['direction']}")
         print(f"Entry Price: {signal_data['entry_price']}")
         print(f"Confidence: {signal_data['confidence']}")
-        print(f"Strategy Signal: {signal_data['strategy_signal']}")
+        print(f"Strategy Strength: {signal_data['strength']}")
+        print(f"Magic Number: {signal_data['magic_number']}")
+        print(f"Timestamp: {signal_data['timestamp']}")
         
         # Inizializza ReliabilityCalculator con signal_data
         reliability_calc = ReliabilityCalculator(signal_data)
@@ -220,4 +220,4 @@ if __name__ == '__main__':
         host=TradingConfig.FLASK_HOST,
         port=TradingConfig.FLASK_PORT,
         debug=TradingConfig.FLASK_DEBUG
-    ) 
+    )

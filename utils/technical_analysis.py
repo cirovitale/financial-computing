@@ -45,7 +45,7 @@ class TechnicalAnalyzer:
 
     def __init__(self, 
                  interval: str = "15m",
-                 context_lookback: int = 15):  # candele totali per contesto
+                 context_lookback: int = 20):  # candele totali per contesto
         """
         Args:
             interval: intervallo temporale ('1d', '1h', etc.)
@@ -53,6 +53,52 @@ class TechnicalAnalyzer:
         """
         self.interval = interval
         self.context_lookback = context_lookback
+
+    def _get_market_data(self, ticker: str):
+        """Recupera dati di mercato con supporto forex."""
+        try:
+            # Converte ticker forex per yfinance
+            yahoo_ticker = self._convert_to_yahoo_format(ticker)
+            
+            period_map = {
+                "1m": "5d", "5m": "60d", "15m": "60d", 
+                "30m": "60d", "1h": "730d", "4h": "730d", "1d": "2y"
+            }
+            period = period_map.get(self.interval, "60d")
+            
+            print(f"Download dati per {ticker} → {yahoo_ticker}")
+            df = yf.download(
+                yahoo_ticker, 
+                period=period, 
+                interval=self.interval, 
+                progress=False,
+                auto_adjust=False
+            )
+            
+            if df.empty:
+                print(f"Nessun dato trovato per {ticker}")
+                return None
+            
+            return df
+            
+        except Exception as e:
+            print(f"Errore recupero dati {ticker}: {e}")
+            return None
+
+    def _convert_to_yahoo_format(self, ticker: str) -> str:
+        """Converte ticker per formato Yahoo Finance."""
+        # Mapping forex
+        forex_mapping = {
+            'GBPUSD': 'GBPUSD=X',
+            'EURUSD': 'EURUSD=X', 
+            'USDJPY': 'USDJPY=X',
+            'USDCHF': 'USDCHF=X',
+            'AUDUSD': 'AUDUSD=X',
+            'USDCAD': 'USDCAD=X',
+            'NZDUSD': 'NZDUSD=X'
+        }
+        
+        return forex_mapping.get(ticker, ticker)
 
     def get_candles(self, ticker: str) -> Optional[Dict]:
         """
@@ -65,30 +111,9 @@ class TechnicalAnalyzer:
             Dizionario con arrays OHLCV o None se errore
         """
         try:
-            # Mappa intervalli yfinance con periodi minimi necessari
-            period_map = {
-                '1m': '7d',     # yfinance limita 1m a 7 giorni
-                '5m': '60d',    # yfinance limita 5m a 60 giorni
-                '15m': '60d',   # yfinance limita 15m a 60 giorni
-                '30m': '60d',   # yfinance limita 30m a 60 giorni
-                '1h': '730d',   # yfinance limita 1h a 730 giorni
-                '2h': '730d',   # yfinance limita 2h a 730 giorni
-                '4h': '730d',   # yfinance limita 4h a 730 giorni
-                '1d': 'max'     # nessun limite per dati giornalieri
-            }
-
-            if self.interval not in period_map:
-                raise ValueError(f"Intervallo {self.interval} non supportato. Usa uno tra: {list(period_map.keys())}")
-
             # Scarica dati usando il periodo minimo necessario per l'intervallo
-            stock = yf.Ticker(ticker)
-            df = stock.history(
-                period=period_map[self.interval],
-                interval=self.interval
-            )
-
-            if df.empty:
-                print(f"Nessun dato trovato per {ticker}")
+            df = self._get_market_data(ticker)
+            if df is None:
                 return None
 
             # Prendi solo le ultime N candele necessarie per l'analisi
@@ -100,7 +125,7 @@ class TechnicalAnalyzer:
             if len(df) < self.context_lookback:
                 print(f"Warning: Recuperate solo {len(df)} candele delle {self.context_lookback} richieste")
                 
-            return {
+            data = {
                 'open': df['Open'].values,
                 'high': df['High'].values,
                 'low': df['Low'].values,
@@ -108,6 +133,26 @@ class TechnicalAnalyzer:
                 'volume': df['Volume'].values,
                 'dates': df.index.values
             }
+
+            arrays = ['open', 'high', 'low', 'close', 'volume']
+
+            # Controlla che tutti abbiano stessa lunghezza
+            lengths = [len(data[key]) for key in arrays]
+            if len(set(lengths)) > 1:
+                print(f"Array con lunghezze diverse: {dict(zip(arrays, lengths))}")
+                return []
+
+            import numpy as np
+            for key in arrays:
+                # Assicura che sia numpy array 1D float64
+                data[key] = np.array(data[key], dtype=np.float64).flatten()
+                # Rimuovi NaN e infiniti
+                data[key] = np.nan_to_num(data[key], nan=0.0, posinf=0.0, neginf=0.0)
+
+            # print(f"Validazione OK: {len(data['open'])} candele")
+            # print(f"Array info: open={data['open'].shape} {data['open'].dtype}")
+
+            return data
 
         except Exception as e:
             print(f"Errore recupero dati per {ticker}: {e}")
