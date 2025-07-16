@@ -13,12 +13,12 @@ extern double   BB_Deviation          = 2.5;
 extern int      Volume_MA_Period      = 20;
 extern double   Volume_Multiplier     = 1.30;
 extern double   RiskRewardRatio       = 3.0;
-extern int      MaxOpenTrades         = 1;
+extern int      MaxOpenTrades         = 2;
 extern int      NumParams = 4; 
 
 // === PARAMETRI SERVER FLASK ===
 extern string   FlaskServerURL        = "http://localhost/api/signal";
-extern bool     SendSignalsToFlask    = true;   
+extern bool     SendSignalsToFlask    = false;   
 
 int magicNumber = 123456;
 
@@ -196,7 +196,7 @@ void SendHTTPRequest(string jsonData) {
       "POST",                    // Metodo
       FlaskServerURL,            // URL
       headers,                   // Headers
-      600000,                     // Timeout
+      60000,                     // Timeout
       postData,                  // Dati POST
       result,                    // Risultato
       resultString               // Risultato come stringa
@@ -251,7 +251,7 @@ bool CheckBB() {
 }
 
 //+------------------------------------------------------------------+
-//| Controllo volume semplice                                        |
+//| Controllo volume                                                 |
 //+------------------------------------------------------------------+
 bool CheckVolume() {
    double vSum = 0;
@@ -283,14 +283,13 @@ double CalculateDynamicConfidence(double stopLoss, double takeProfit)
    double risk   = Ask - stopLoss;
    double reward = takeProfit - Ask;
    double rr     = risk>0 ? reward/risk : 0.0;
-   // normalizzazione R:R su un massimo considerato di 5: da 0–1
+   // normalizzazione
    double rrScore = MathMin(rr/5.0, 1.0);
 
    // RSI: più rsi è sotto la soglia oversold, più score
    double rsi       = iRSI(NULL,0,RSI_Period,PRICE_CLOSE,0);
    double rsiScore  = (RSI_Oversold - rsi) / RSI_Oversold;
    rsiScore = MathMax(0.0, MathMin(rsiScore,1.0));
-
 
    // media
    double conf = 0.5*rrScore + 0.5*rsiScore;
